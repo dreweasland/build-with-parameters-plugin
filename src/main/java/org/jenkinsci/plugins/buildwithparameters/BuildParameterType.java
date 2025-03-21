@@ -7,6 +7,10 @@ package org.jenkinsci.plugins.buildwithparameters;
  * @version 1.0
  */
 public enum BuildParameterType {
-
-    STRING, PASSWORD, TEXT, BOOLEAN, CHOICE
+    STRING,
+    BOOLEAN,
+    PASSWORD,
+    CHOICE,
+    TEXT,
+    SEPARATOR
 }

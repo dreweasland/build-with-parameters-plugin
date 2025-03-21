@@ -4,11 +4,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.Action;
 import hudson.model.Job;
-import jenkins.model.ParameterizedJobMixIn.ParameterizedJob;
-import jenkins.model.TransientActionFactory;
-
 import java.util.Collection;
 import java.util.Collections;
+import jenkins.model.ParameterizedJobMixIn.ParameterizedJob;
+import jenkins.model.TransientActionFactory;
 
 @Extension
 public class ParamBuilderActionFactory extends TransientActionFactory<Job> {
@@ -28,5 +27,4 @@ public class ParamBuilderActionFactory extends TransientActionFactory<Job> {
             return Collections.emptyList();
         }
     }
-
 }

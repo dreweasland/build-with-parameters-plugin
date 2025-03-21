@@ -7,39 +7,52 @@
             </l:tasks>
         </l:side-panel>
         <l:main-panel>
-            <h2>Trigger ${it.projectName}</h2>
-            <f:form method="post" action="configSubmit" name="config">
+            <h2>Pipeline ${it.displayName}</h2>
+            <f:form class="jenkins-form" method="post" action="configSubmit" name="config">
                 <j:forEach var="parameter" items="${it.availableParameters}">
-                    <j:set var="escapeEntryTitleAndDescription" value="true"/>
-                    <f:entry title="${parameter.name}" description="${parameter.description}">
-                        <div name="parameter">
-                            <j:choose>
-                                <j:when test="${parameter.type == 'PASSWORD'}">
-                                    <f:password name="${parameter.name}" value="${parameter.value}"/>
-                                </j:when>
-                                <j:when test="${parameter.type == 'BOOLEAN'}">
-                                    <f:checkbox name="${parameter.name}" checked="${parameter.value}"/>
-                                </j:when>
-                                <j:when test="${parameter.type == 'CHOICE'}">
-                                    <select name="${parameter.name}">
-                                        <j:forEach var="value" items="${parameter.choices}">
-                                            <f:option selected="${parameter.value == value}">${value}</f:option>
-                                        </j:forEach>
-                                    </select>
-                                </j:when>
-                                <j:when test="${parameter.type == 'TEXT'}">
-                                    <f:textarea name="${parameter.name}" value="${parameter.value}"/>
-                                </j:when>
-                                <j:otherwise>
-                                    <f:textbox name="${parameter.name}" value="${parameter.value}"/>
-                                </j:otherwise>
-                            </j:choose>
-                        </div>
-                    </f:entry>
+                    <j:choose>
+                        <j:when test="${parameter.type == 'SEPARATOR'}">
+                            <div style="${parameter.sectionHeaderStyle}">
+                                ${parameter.sectionHeader}
+                            </div>
+                        </j:when>
+                        <j:when test="${parameter.type == 'BOOLEAN'}">
+                            <f:entry title="${parameter.name}">
+                                <f:checkbox name="${parameter.name}" checked="${parameter.value}"/>
+                                <f:description>${parameter.description}</f:description>
+                            </f:entry>
+                        </j:when>
+                        <j:otherwise>
+                            <j:set var="escapeEntryTitleAndDescription" value="true"/>
+                            <f:entry title="${parameter.name}" description="${parameter.description}">
+                                <j:choose>
+                                    <j:when test="${parameter.type == 'PASSWORD'}">
+                                        <f:password name="${parameter.name}" value="${parameter.value}"/>
+                                    </j:when>
+                                    <j:when test="${parameter.type == 'CHOICE'}">
+                                        <select class="jenkins-select__input" name="${parameter.name}">
+                                            <j:forEach var="value" items="${parameter.choices}">
+                                                <f:option selected="${parameter.value == value}">${value}</f:option>
+                                            </j:forEach>
+                                        </select>
+                                    </j:when>
+                                    <j:when test="${parameter.type == 'TEXT'}">
+                                        <f:textarea name="${parameter.name}" value="${parameter.value}"/>
+                                    </j:when>
+                                    <j:otherwise>
+                                        <f:textbox name="${parameter.name}" value="${parameter.value}"/>
+                                    </j:otherwise>
+                                </j:choose>
+                            </f:entry>
+                        </j:otherwise>
+                    </j:choose>
                 </j:forEach>
-                <f:block>
-                    <f:submit value="${%Build}"/>
-                </f:block>
+                <div id="bottom-sticker">
+                    <div class="bottom-sticker-inner jenkins-buttons-row jenkins-buttons-row--equal-width">
+                        <f:submit class="jenkins-button jenkins-button--primary jenkins-!-build-color" value="${%Build}"/>
+                        <a href="./" class="jenkins-button">Cancel</a>
+                    </div>
+                </div>
             </f:form>
         </l:main-panel>
     </l:layout>

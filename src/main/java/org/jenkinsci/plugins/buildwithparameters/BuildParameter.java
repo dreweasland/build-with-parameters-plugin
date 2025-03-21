@@ -14,7 +14,10 @@ public class BuildParameter {
     private final String name;
     private final String description;
     private String value;
-    private List<String> choices = null;
+    private List<String> choices;
+    private String sectionHeader;
+    private String separatorStyle;
+    private String sectionHeaderStyle;
 
     public BuildParameter(String name, String description) {
         this.name = name;
@@ -22,9 +25,6 @@ public class BuildParameter {
     }
 
     public static boolean isDefaultPasswordPlaceholder(String candidate) {
-        if (candidate == null) {
-            return false;
-        }
         return JOB_DEFAULT_PASSWORD_PLACEHOLDER.equals(candidate);
     }
 
@@ -41,14 +41,16 @@ public class BuildParameter {
     }
 
     public void setValue(ParameterValue parameterValue) {
-        if (parameterValue instanceof TextParameterValue) {
-            this.value = ((TextParameterValue) parameterValue).getValue();
-        } else if (parameterValue instanceof StringParameterValue) {
-            this.value = ((StringParameterValue) parameterValue).getValue();
+        if (parameterValue instanceof PasswordParameterValue) {
+            this.value = JOB_DEFAULT_PASSWORD_PLACEHOLDER;
         } else if (parameterValue instanceof BooleanParameterValue) {
             this.value = String.valueOf(((BooleanParameterValue) parameterValue).getValue());
-        } else if (parameterValue instanceof PasswordParameterValue) {
-            this.value = JOB_DEFAULT_PASSWORD_PLACEHOLDER;
+        } else if (parameterValue instanceof TextParameterValue || parameterValue instanceof StringParameterValue) {
+            this.value = parameterValue instanceof TextParameterValue
+                    ? ((TextParameterValue) parameterValue).getValue()
+                    : ((StringParameterValue) parameterValue).getValue();
+        } else {
+            this.value = null;
         }
     }
 
@@ -68,4 +70,27 @@ public class BuildParameter {
         this.choices = choices;
     }
 
+    public String getSectionHeader() {
+        return sectionHeader;
+    }
+
+    public void setSectionHeader(String sectionHeader) {
+        this.sectionHeader = sectionHeader;
+    }
+
+    public String getSeparatorStyle() {
+        return separatorStyle;
+    }
+
+    public void setSeparatorStyle(String separatorStyle) {
+        this.separatorStyle = separatorStyle;
+    }
+
+    public String getsectionHeaderStyle() {
+        return sectionHeaderStyle;
+    }
+
+    public void setsectionHeaderStyle(String sectionHeaderStyle) {
+        this.sectionHeaderStyle = sectionHeaderStyle;
+    }
 }

@@ -1,28 +1,17 @@
 package org.jenkinsci.plugins.buildwithparameters;
 
-import hudson.model.Action;
-import hudson.model.BooleanParameterDefinition;
-import hudson.model.BooleanParameterValue;
-import hudson.model.BuildableItem;
-import hudson.model.Cause;
-import hudson.model.CauseAction;
-import hudson.model.ChoiceParameterDefinition;
-import hudson.model.Job;
-import hudson.model.ParameterDefinition;
-import hudson.model.ParameterValue;
-import hudson.model.ParametersAction;
-import hudson.model.ParametersDefinitionProperty;
-import hudson.model.PasswordParameterDefinition;
-import hudson.model.PasswordParameterValue;
-import hudson.model.StringParameterDefinition;
-import hudson.model.TextParameterDefinition;
+import com.wangyin.parameter.WHideParameterDefinition;
+import hudson.model.*;
 import hudson.util.Secret;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import javax.servlet.ServletException;
 import jenkins.model.Jenkins;
 import jenkins.model.ParameterizedJobMixIn.ParameterizedJob;
+import jenkins.plugins.parameter_separator.ParameterSeparatorDefinition;
 import net.sf.json.JSONObject;
 import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
@@ -31,7 +20,6 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
 
 public class BuildWithParametersAction<T extends Job<?, ?> & ParameterizedJob> implements Action {
     private static final String URL_NAME = "parambuild";
-
     private final T project;
 
     public BuildWithParametersAction(T project) {
@@ -39,56 +27,66 @@ public class BuildWithParametersAction<T extends Job<?, ?> & ParameterizedJob> i
     }
 
     //////////////////
-    //              //
     //     VIEW     //
-    //              //
     //////////////////
+
     public String getProjectName() {
         return project.getName();
     }
 
-    public List<BuildParameter> getAvailableParameters() {
-        List<BuildParameter> buildParameters = new ArrayList<>();
-
-        for (ParameterDefinition parameterDefinition : getParameterDefinitions()) {
-            BuildParameter buildParameter = new BuildParameter(parameterDefinition.getName(), parameterDefinition.getDescription());
-            if (parameterDefinition.getClass().isAssignableFrom(PasswordParameterDefinition.class)) {
-                buildParameter.setType(BuildParameterType.PASSWORD);
-            } else if (parameterDefinition.getClass().isAssignableFrom(BooleanParameterDefinition.class)) {
-                buildParameter.setType(BuildParameterType.BOOLEAN);
-            } else if (parameterDefinition.getClass().isAssignableFrom(ChoiceParameterDefinition.class)) {
-                buildParameter.setType(BuildParameterType.CHOICE);
-                buildParameter.setChoices(((ChoiceParameterDefinition) parameterDefinition).getChoices());
-            } else if (parameterDefinition.getClass().isAssignableFrom(StringParameterDefinition.class)) {
-                buildParameter.setType(BuildParameterType.STRING);
-            } else if (parameterDefinition.getClass().isAssignableFrom(TextParameterDefinition.class)) {
-                buildParameter.setType(BuildParameterType.TEXT);
-            } else {
-                // default to string
-                buildParameter.setType(BuildParameterType.STRING);
-            }
-
-            try {
-                buildParameter.setValue(getParameterDefinitionValue(parameterDefinition));
-            } catch (IllegalArgumentException ignored) {
-                // If a value was provided that does not match available options, leave the value blank.
-            }
-
-            buildParameters.add(buildParameter);
-        }
-
-        return buildParameters;
+    public String getDisplayName() {
+        return project.getDisplayName();
     }
 
-    ParameterValue getParameterDefinitionValue(ParameterDefinition parameterDefinition) {
-        return parameterDefinition.createValue(Stapler.getCurrentRequest());
+    /**
+     * Returns the list of parameters to be shown in the build UI.
+     * Hidden and separator parameters are omitted.
+     */
+    public List<BuildParameter> getAvailableParameters() {
+        return getParameterDefinitions().stream()
+                .filter(pd -> !(pd instanceof WHideParameterDefinition))
+                .map(pd -> {
+                    BuildParameter bp = new BuildParameter(pd.getName(), pd.getDescription());
+                    bp.setType(mapParameterType(pd));
+                    try {
+                        bp.setValue(pd.createValue(Stapler.getCurrentRequest()));
+                    } catch (IllegalArgumentException ignored) {
+                        // If a provided value does not match available options, leave the value blank.
+                    }
+                    if (pd instanceof ChoiceParameterDefinition) {
+                        bp.setChoices(((ChoiceParameterDefinition) pd).getChoices());
+                    }
+                    if (pd instanceof jenkins.plugins.parameter_separator.ParameterSeparatorDefinition) {
+                        jenkins.plugins.parameter_separator.ParameterSeparatorDefinition sepDef =
+                                (jenkins.plugins.parameter_separator.ParameterSeparatorDefinition) pd;
+                        bp.setSectionHeader(sepDef.getSectionHeader());
+                        bp.setSeparatorStyle(sepDef.getSeparatorStyle());
+                        bp.setsectionHeaderStyle(sepDef.getSectionHeaderStyle());
+                    }
+                    return bp;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private BuildParameterType mapParameterType(ParameterDefinition pd) {
+        if (pd instanceof PasswordParameterDefinition) {
+            return BuildParameterType.PASSWORD;
+        } else if (pd instanceof BooleanParameterDefinition) {
+            return BuildParameterType.BOOLEAN;
+        } else if (pd instanceof ChoiceParameterDefinition) {
+            return BuildParameterType.CHOICE;
+        } else if (pd instanceof StringParameterDefinition) {
+            return BuildParameterType.STRING;
+        } else if (pd instanceof TextParameterDefinition) {
+            return BuildParameterType.TEXT;
+        } else if (pd instanceof ParameterSeparatorDefinition) {
+            return BuildParameterType.SEPARATOR;
+        }
+        // Default to STRING if type is not recognized.
+        return BuildParameterType.STRING;
     }
 
     public String getIconFileName() {
-        return null; // Invisible
-    }
-
-    public String getDisplayName() {
         return null; // Invisible
     }
 
@@ -98,66 +96,75 @@ public class BuildWithParametersAction<T extends Job<?, ?> & ParameterizedJob> i
     }
 
     //////////////////
-    //              //
     //  SUBMISSION  //
-    //              //
     //////////////////
+
+    /**
+     * Processes the submitted form.
+     * Hidden parameters use their default value when not provided; separator parameters are skipped.
+     */
     @RequirePOST
     public void doConfigSubmit(StaplerRequest req, StaplerResponse rsp) throws IOException, ServletException {
         project.checkPermission(BuildableItem.BUILD);
 
         List<ParameterValue> values = new ArrayList<>();
-
         JSONObject formData = req.getSubmittedForm();
+
         if (!formData.isEmpty()) {
-            for (ParameterDefinition parameterDefinition : getParameterDefinitions()) {
-                ParameterValue parameterValue = parameterDefinition.createValue(req);
-                if (parameterValue != null) {
-                    if (parameterValue.getClass().isAssignableFrom(BooleanParameterValue.class)) {
-                        boolean value = (req.getParameter(parameterDefinition.getName()) != null);
-                        parameterValue = ((BooleanParameterDefinition) parameterDefinition).createValue(String.valueOf(value));
-                    } else if (parameterValue.getClass().isAssignableFrom(PasswordParameterValue.class)) {
-                        parameterValue = applyDefaultPassword((PasswordParameterDefinition) parameterDefinition,
-                                                                (PasswordParameterValue) parameterValue);
-                    }
+            for (ParameterDefinition pd : getParameterDefinitions()) {
+                if (pd instanceof ParameterSeparatorDefinition) {
+                    continue;
                 }
-                // This will throw an exception if the provided value is not a valid option for the parameter.
-                // This is the desired behavior, as we want to ensure valid submissions.
-                values.add(parameterValue);
+                ParameterValue pv = pd.createValue(req);
+                // For hidden parameters, if no value is supplied, use the default.
+                if (pv == null && pd instanceof WHideParameterDefinition) {
+                    pv = pd.getDefaultParameterValue();
+                }
+                if (pv != null) {
+                    pv = processSpecialParameterTypes(req, pd, pv);
+                    values.add(pv);
+                }
             }
         }
 
-        Jenkins.get().getQueue().schedule(project, 0, new ParametersAction(values), new CauseAction(new Cause.UserIdCause()));
+        Jenkins.get()
+                .getQueue()
+                .schedule(project, 0, new ParametersAction(values), new CauseAction(new Cause.UserIdCause()));
         rsp.sendRedirect("../");
     }
 
-    ParameterValue applyDefaultPassword(PasswordParameterDefinition parameterDefinition,
-            PasswordParameterValue parameterValue) {
-        String jobPassword = getPasswordValue(parameterValue);
+    private ParameterValue processSpecialParameterTypes(StaplerRequest req, ParameterDefinition pd, ParameterValue pv) {
+        if (pv instanceof BooleanParameterValue) {
+            boolean value = req.getParameter(pd.getName()) != null;
+            pv = ((BooleanParameterDefinition) pd).createValue(String.valueOf(value));
+        } else if (pv instanceof PasswordParameterValue) {
+            pv = applyDefaultPassword((PasswordParameterDefinition) pd, (PasswordParameterValue) pv);
+        }
+        return pv;
+    }
+
+    protected ParameterValue applyDefaultPassword(PasswordParameterDefinition pd, PasswordParameterValue pv) {
+        String jobPassword = getPasswordValue(pv);
         if (!BuildParameter.isDefaultPasswordPlaceholder(jobPassword)) {
-            return parameterValue;
+            return pv;
         }
-        PasswordParameterValue password = (PasswordParameterValue) parameterDefinition.getDefaultParameterValue();
-        String jobDefaultPassword = password != null ? getPasswordValue(password) : "";
-        return new PasswordParameterValue(parameterValue.getName(), jobDefaultPassword);
+        PasswordParameterValue defaultPv = (PasswordParameterValue) pd.getDefaultParameterValue();
+        String defaultPassword = defaultPv != null ? getPasswordValue(defaultPv) : "";
+        return new PasswordParameterValue(pv.getName(), defaultPassword);
     }
 
-    static String getPasswordValue(PasswordParameterValue parameterValue) {
-        Secret secret = parameterValue.getValue();
-        return Secret.toString(secret);
+    public static String getPasswordValue(PasswordParameterValue pv) {
+        return Secret.toString(pv.getValue());
     }
 
     //////////////////
-    //              //
     //   HELPERS    //
-    //              //
     //////////////////
-    private List<ParameterDefinition> getParameterDefinitions() {
-        ParametersDefinitionProperty property = project.getProperty(ParametersDefinitionProperty.class);
-        if (property != null && property.getParameterDefinitions() != null) {
-            return property.getParameterDefinitions();
-        }
-        return new ArrayList<>();
-    }
 
+    private List<ParameterDefinition> getParameterDefinitions() {
+        ParametersDefinitionProperty prop = project.getProperty(ParametersDefinitionProperty.class);
+        return (prop != null && prop.getParameterDefinitions() != null)
+                ? prop.getParameterDefinitions()
+                : Collections.emptyList();
+    }
 }
