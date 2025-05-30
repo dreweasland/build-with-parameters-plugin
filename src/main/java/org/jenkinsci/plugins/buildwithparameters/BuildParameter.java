@@ -86,11 +86,11 @@ public class BuildParameter {
         this.separatorStyle = separatorStyle;
     }
 
-    public String getsectionHeaderStyle() {
+    public String getSectionHeaderStyle() {
         return sectionHeaderStyle;
     }
 
-    public void setsectionHeaderStyle(String sectionHeaderStyle) {
+    public void setSectionHeaderStyle(String sectionHeaderStyle) {
         this.sectionHeaderStyle = sectionHeaderStyle;
     }
 }
