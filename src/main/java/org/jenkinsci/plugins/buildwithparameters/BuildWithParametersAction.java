@@ -61,7 +61,7 @@ public class BuildWithParametersAction<T extends Job<?, ?> & ParameterizedJob> i
                                 (jenkins.plugins.parameter_separator.ParameterSeparatorDefinition) pd;
                         bp.setSectionHeader(sepDef.getSectionHeader());
                         bp.setSeparatorStyle(sepDef.getSeparatorStyle());
-                        bp.setsectionHeaderStyle(sepDef.getSectionHeaderStyle());
+                        bp.setSectionHeaderStyle(sepDef.getSectionHeaderStyle());
                     }
                     return bp;
                 })
